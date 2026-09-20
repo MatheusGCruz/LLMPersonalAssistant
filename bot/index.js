@@ -30,9 +30,11 @@ async function download(route, url) {
     if (!response.ok) {
       throw new Error(`endpoint answered with status ${response.status}`);
     }
+    const disposition = response.headers.get('content-disposition') || '';
+    const filename = parseContentDisposition(disposition) || baseName(route, url);
     const buffer = Buffer.from(await response.arrayBuffer());
-    console.log(`[bot] download done | route="${route.name || route.endpoint}" status=${response.status} bytes=${buffer.length} took=${Date.now() - started}ms`);
-    return buffer;
+    console.log(`[bot] download done | route="${route.name || route.endpoint}" status=${response.status} bytes=${buffer.length} filename="${filename}" took=${Date.now() - started}ms`);
+    return { buffer, filename };
   } catch (err) {
     console.error(`[bot] download failed | route="${route.name || route.endpoint}" url="${url}" runtime=${Date.now() - started}ms`, err.message);
     throw err;
@@ -41,13 +43,25 @@ async function download(route, url) {
   }
 }
 
-async function sendAudio(chatId, buffer, route) {
-  const filePath = path.join(os.tmpdir(), `${route.name || 'audio'}_${Date.now()}.mp3`);
+function sanitizeFilename(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9._-]+/g, '')
+    .replace(/^\.+|\.+$/g, '')
+    .slice(0, 80) || 'audio';
+}
+
+async function sendAudio(chatId, buffer, route, filename) {
+  const baseName = sanitizeFilename(filename) || route.name || 'audio';
+  const filePath = path.join(os.tmpdir(), `${baseName}_${Date.now()}.mp3`);
   fs.writeFileSync(filePath, buffer);
   const started = Date.now();
   try {
     await bot.sendAudio(chatId, fs.createReadStream(filePath), {
-      filename: path.basename(filePath),
+      filename: `${baseName || route.name || 'audio'}.mp3`,
       contentType: 'audio/mpeg',
       title: route.audio_title || 'YouTube Audio',
       performer: route.audio_performer || 'Telegram',
@@ -68,12 +82,12 @@ async function handleRoute(chatId, route, url) {
   console.log(`[bot] handleRoute start | chat=${chatId} route="${route.name || 'unnamed'}" url="${url}" intermediary=${messages.length}`);
   try {
     await bot.sendMessage(chatId, first || 'Processando...');
-    const buffer = await download(route, url);
+    const { buffer, filename } = await download(route, url);
     for (const message of rest) {
       await bot.sendMessage(chatId, message);
       await sleep(config.delayMs);
     }
-    await sendAudio(chatId, buffer, route);
+    await sendAudio(chatId, buffer, route, filename);
     console.log(`[bot] handleRoute done | chat=${chatId} route="${route.name || 'unnamed'}" totalBytes=${buffer.length}`);
   } catch (err) {
     console.error(`[bot] route "${route.name || url}" failed:`, err.message);
