@@ -83,7 +83,54 @@ async function handleRoute(chatId, route, url) {
   }
 }
 
+async function openRouterChat(text) {
+  if (!config.openrouterEnabled || !config.openrouterApiKey) {
+    console.log(`[bot] openrouter skipped | enabled=${config.openrouterEnabled} hasKey=${Boolean(config.openrouterApiKey)}`);
+    return null;
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.openrouterTimeoutMs);
+  const url = `${config.openrouterBaseUrl.replace(/\/+$/, '')}/chat/completions`;
+  console.log(`[bot] openrouter start | model="${config.openrouterModel}" url="${url}" timeout=${config.openrouterTimeoutMs}ms`);
+  const started = Date.now();
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.openrouterApiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.openrouterModel,
+        messages: [{ role: 'user', content: text }],
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`openrouter answered with status ${response.status}`);
+    }
+    const data = await response.json();
+    const content = (((data.choices || [])[0] || {}).message || {}).content;
+    if (!content) {
+      throw new Error('openrouter response did not include message content');
+    }
+    console.log(`[bot] openrouter ok | status=${response.status} runtime=${Date.now() - started}ms`);
+    return content;
+  } catch (err) {
+    console.warn(`[bot] openrouter request failed | runtime=${Date.now() - started}ms:`, err.message);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function handleAssistant(chatId, text) {
+  const openrouterContent = await openRouterChat(text);
+  if (openrouterContent) {
+    await bot.sendMessage(chatId, openrouterContent);
+    console.log(`[bot] openrouter reply sent | chat=${chatId} chars=${openrouterContent.length}`);
+    return;
+  }
   if (!config.assistantEnabled || !config.assistantEndpoint) {
     console.log(`[bot] assistant disabled or not configured | chat=${chatId} enabled=${config.assistantEnabled} endpoint=${config.assistantEndpoint}`);
     await bot.sendMessage(chatId, config.fallbackMessage);

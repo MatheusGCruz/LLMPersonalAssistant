@@ -45,6 +45,11 @@ services:
       BOT_INTERMEDIARY_DELAY_MS: ${BOT_INTERMEDIARY_DELAY_MS:-1200}
       BOT_FALLBACK_MESSAGE: ${BOT_FALLBACK_MESSAGE:-}
       BOT_ROUTES: ${BOT_ROUTES:-}
+      BOT_OPENROUTER_ENABLED: ${BOT_OPENROUTER_ENABLED:-true}
+      BOT_OPENROUTER_API_KEY: ${BOT_OPENROUTER_API_KEY:-${OPENROUTER_API_KEY:-}}
+      BOT_OPENROUTER_BASE_URL: ${BOT_OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      BOT_OPENROUTER_MODEL: ${BOT_OPENROUTER_MODEL:-openrouter/free}
+      BOT_OPENROUTER_TIMEOUT_MS: ${BOT_OPENROUTER_TIMEOUT_MS:-120000}
     # Lets "host.docker.internal" resolve to the host machine, so routes can point
     # at services running on the host (e.g. http://host.docker.internal:3021/mp3).
     extra_hosts:
