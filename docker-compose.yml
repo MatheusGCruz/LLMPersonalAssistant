@@ -1,0 +1,52 @@
+services:
+  assistant:
+    build:
+      context: ./backend
+    container_name: llm-assistant
+    ports:
+      - "${LLMPA_PORT:-8000}:8000"
+    environment:
+      MODELS_DIR: /models
+      MODEL_REPO: ${MODEL_REPO:-mradermacher/Qwen3-0.6B-heretic-abliterated-uncensored-i1-GGUF}
+      MODEL_FILENAME: ${MODEL_FILENAME:-Qwen3-0.6B-heretic-abliterated-uncensored.i1-Q4_K_M.gguf}
+      LLAMA_N_CTX: ${LLAMA_N_CTX:-4096}
+      LLAMA_N_GPU_LAYERS: ${LLAMA_N_GPU_LAYERS:-0}
+      LLAMA_THREADS: ${LLAMA_THREADS:-4}
+      LLAMA_CHAT_FORMAT: ${LLAMA_CHAT_FORMAT:-}
+      PRELOAD_MODEL: ${PRELOAD_MODEL:-1}
+      MAX_TOOL_ITERATIONS: ${MAX_TOOL_ITERATIONS:-3}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      TOOL_ROUTING_RULES: ${TOOL_ROUTING_RULES:-}
+      MCP_ENABLED: ${MCP_ENABLED:-true}
+      MCP_SERVERS: ${MCP_SERVERS:-}
+    volumes:
+      - ./models:/models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+  bot:
+    build:
+      context: ./bot
+    container_name: llm-assistant-bot
+    depends_on:
+      - assistant
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      BOT_ASSISTANT_ENABLED: ${BOT_ASSISTANT_ENABLED:-true}
+      BOT_ASSISTANT_ENDPOINT: ${BOT_ASSISTANT_ENDPOINT:-http://assistant:8000/assistant}
+      BOT_FETCH_TIMEOUT_MS: ${BOT_FETCH_TIMEOUT_MS:-180000}
+      BOT_INTERMEDIARY_DELAY_MS: ${BOT_INTERMEDIARY_DELAY_MS:-1200}
+      BOT_FALLBACK_MESSAGE: ${BOT_FALLBACK_MESSAGE:-}
+      BOT_ROUTES: ${BOT_ROUTES:-}
+    # Lets "host.docker.internal" resolve to the host machine, so routes can point
+    # at services running on the host (e.g. http://host.docker.internal:3021/mp3).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
