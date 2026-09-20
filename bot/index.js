@@ -65,19 +65,18 @@ async function download(route, url) {
   }
 }
 
-function sanitizeFilename(name) {
-  return String(name || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9._-]+/g, '')
-    .replace(/^\.+|\.+$/g, '')
-    .slice(0, 80) || 'audio';
+function keepFilename(name) {
+  const cleaned = String(name || '').trim();
+  if (!cleaned) return '';
+  const safe = cleaned
+    .replace(/[/\\\0]+/g, '')
+    .replace(/\.\.+/g, '.')
+    .replace(/^\.+|\.+$/g, '');
+  return safe || '';
 }
 
 async function sendDocument(chatId, buffer, route, filename) {
-  const baseName = sanitizeFilename(filename) || route.name || 'audio';
+  const baseName = keepFilename(filename) || route.name || 'audio';
   const filePath = path.join(os.tmpdir(), `${baseName}_${Date.now()}.mp3`);
   fs.writeFileSync(filePath, buffer);
   const started = Date.now();
