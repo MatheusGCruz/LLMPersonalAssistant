@@ -15,6 +15,28 @@ const bot = new TelegramBot(token, { polling: true });
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function baseName(route, url) {
+  const cleaned = String(url || '')
+    .split(/[?#]/)[0]
+    .split('/')
+    .pop();
+  if (cleaned && cleaned.length >= 8) return cleaned;
+  return route.name || 'audio';
+}
+
+function parseContentDisposition(disposition) {
+  if (!disposition) return null;
+  const star = /filename\*\s*=\s*(?:UTF-8''|utf-8'')([^;]+)/i.exec(disposition);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim());
+    } catch (_) {}
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(disposition);
+  if (plain) return plain[1].trim();
+  return null;
+}
+
 async function download(route, url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
