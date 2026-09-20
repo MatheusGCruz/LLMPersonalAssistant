@@ -76,22 +76,20 @@ function sanitizeFilename(name) {
     .slice(0, 80) || 'audio';
 }
 
-async function sendAudio(chatId, buffer, route, filename) {
+async function sendDocument(chatId, buffer, route, filename) {
   const baseName = sanitizeFilename(filename) || route.name || 'audio';
   const filePath = path.join(os.tmpdir(), `${baseName}_${Date.now()}.mp3`);
   fs.writeFileSync(filePath, buffer);
   const started = Date.now();
   try {
-    await bot.sendAudio(chatId, fs.createReadStream(filePath), {
-      filename: `${baseName || route.name || 'audio'}.mp3`,
+    await bot.sendDocument(chatId, fs.createReadStream(filePath), {
+      filename: `${baseName}.mp3`,
       contentType: 'audio/mpeg',
-      title: route.audio_title || 'YouTube Audio',
-      performer: route.audio_performer || 'Telegram',
       caption: route.caption || '',
     });
-    console.log(`[bot] audio sent | chat=${chatId} bytes=${buffer.length} took=${Date.now() - started}ms`);
+    console.log(`[bot] document sent | chat=${chatId} filename="${baseName}.mp3" bytes=${buffer.length} took=${Date.now() - started}ms`);
   } catch (err) {
-    console.error(`[bot] audio send failed | chat=${chatId}`, err.message);
+    console.error(`[bot] document send failed | chat=${chatId}`, err.message);
     throw err;
   } finally {
     fs.unlink(filePath, () => {});
@@ -109,7 +107,7 @@ async function handleRoute(chatId, route, url) {
       await bot.sendMessage(chatId, message);
       await sleep(config.delayMs);
     }
-    await sendAudio(chatId, buffer, route, filename);
+    await sendDocument(chatId, buffer, route, filename);
     console.log(`[bot] handleRoute done | chat=${chatId} route="${route.name || 'unnamed'}" totalBytes=${buffer.length}`);
   } catch (err) {
     console.error(`[bot] route "${route.name || url}" failed:`, err.message);
