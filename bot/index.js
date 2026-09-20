@@ -18,8 +18,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function download(route, url) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
+  const endpoint = buildEndpoint(route, url);
+  console.log(`[bot] download start | route="${route.name || route.endpoint}" url="${url}" endpoint="${endpoint}" timeout=${config.fetchTimeoutMs}ms`);
+  const started = Date.now();
   try {
-    const response = await fetch(buildEndpoint(route, url), {
+    const response = await fetch(endpoint, {
       method: route.method || 'GET',
       redirect: 'follow',
       signal: controller.signal,
@@ -27,7 +30,12 @@ async function download(route, url) {
     if (!response.ok) {
       throw new Error(`endpoint answered with status ${response.status}`);
     }
-    return Buffer.from(await response.arrayBuffer());
+    const buffer = Buffer.from(await response.arrayBuffer());
+    console.log(`[bot] download done | route="${route.name || route.endpoint}" status=${response.status} bytes=${buffer.length} took=${Date.now() - started}ms`);
+    return buffer;
+  } catch (err) {
+    console.error(`[bot] download failed | route="${route.name || route.endpoint}" url="${url}" runtime=${Date.now() - started}ms`, err.message);
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -36,6 +44,7 @@ async function download(route, url) {
 async function sendAudio(chatId, buffer, route) {
   const filePath = path.join(os.tmpdir(), `${route.name || 'audio'}_${Date.now()}.mp3`);
   fs.writeFileSync(filePath, buffer);
+  const started = Date.now();
   try {
     await bot.sendAudio(chatId, fs.createReadStream(filePath), {
       filename: path.basename(filePath),
@@ -44,6 +53,10 @@ async function sendAudio(chatId, buffer, route) {
       performer: route.audio_performer || 'Telegram',
       caption: route.caption || '',
     });
+    console.log(`[bot] audio sent | chat=${chatId} bytes=${buffer.length} took=${Date.now() - started}ms`);
+  } catch (err) {
+    console.error(`[bot] audio send failed | chat=${chatId}`, err.message);
+    throw err;
   } finally {
     fs.unlink(filePath, () => {});
   }
@@ -52,6 +65,7 @@ async function sendAudio(chatId, buffer, route) {
 async function handleRoute(chatId, route, url) {
   const messages = (route.intermediary_messages || []).filter((m) => m);
   const [first, ...rest] = messages;
+  console.log(`[bot] handleRoute start | chat=${chatId} route="${route.name || 'unnamed'}" url="${url}" intermediary=${messages.length}`);
   try {
     await bot.sendMessage(chatId, first || 'Processando...');
     const buffer = await download(route, url);
@@ -60,6 +74,7 @@ async function handleRoute(chatId, route, url) {
       await sleep(config.delayMs);
     }
     await sendAudio(chatId, buffer, route);
+    console.log(`[bot] handleRoute done | chat=${chatId} route="${route.name || 'unnamed'}" totalBytes=${buffer.length}`);
   } catch (err) {
     console.error(`[bot] route "${route.name || url}" failed:`, err.message);
     try {
@@ -70,11 +85,14 @@ async function handleRoute(chatId, route, url) {
 
 async function handleAssistant(chatId, text) {
   if (!config.assistantEnabled || !config.assistantEndpoint) {
+    console.log(`[bot] assistant disabled or not configured | chat=${chatId} enabled=${config.assistantEnabled} endpoint=${config.assistantEndpoint}`);
     await bot.sendMessage(chatId, config.fallbackMessage);
     return;
   }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
+  console.log(`[bot] assistant start | chat=${chatId} endpoint=${config.assistantEndpoint} timeout=${config.fetchTimeoutMs}ms`);
+  const started = Date.now();
   try {
     const response = await fetch(config.assistantEndpoint, {
       method: 'POST',
@@ -87,9 +105,11 @@ async function handleAssistant(chatId, text) {
     }
     const data = await response.json();
     const content = data.content || data.result || 'Sem resposta.';
+    console.log(`[bot] assistant ok | chat=${chatId} status=${response.status} runtime=${Date.now() - started}ms`);
     await bot.sendMessage(chatId, content);
+    console.log(`[bot] assistant reply sent | chat=${chatId} chars=${content.length}`);
   } catch (err) {
-    console.error('[bot] assistant request failed:', err.message);
+    console.error(`[bot] assistant request failed | chat=${chatId} runtime=${Date.now() - started}ms:`, err.message);
     try {
       await bot.sendMessage(chatId, 'Erro ao consultar o assistente.');
     } catch (_) {}
@@ -104,10 +124,14 @@ bot.on('message', async (msg) => {
     return;
   }
   const chatId = msg.chat.id;
+  const sender = msg.from ? `@${msg.from.username || msg.from.first_name}` : 'unknown';
+  console.log(`[bot] message received | chat=${chatId} sender=${sender} text="${text}"`);
   const hit = matchRoute(text, config.routes);
   if (hit) {
+    console.log(`[bot] message routed | chat=${chatId} route="${hit.route.name}" url="${hit.url}"`);
     return handleRoute(chatId, hit.route, hit.url);
   }
+  console.log(`[bot] message -> assistant | chat=${chatId}`);
   return handleAssistant(chatId, text);
 });
 
