@@ -54,20 +54,8 @@ def root() -> dict:
 
 
 @app.get("/health")
-def health() -> dict:
-    from .mcp_manager import mcp_status
-
-    settings = get_settings()
-    engine = get_engine(settings)
+def health():
     return {
         "status": "ok",
-        "model_repo": settings.model_repo,
-        "model_filename": settings.model_filename,
-        "model_file": str(settings.model_path),
-        "model_downloaded": settings.model_path.is_file(),
-        "model_ready": engine.loaded(),
-        "openrouter_enabled": settings.has_openrouter_key,
-        "openrouter_model": settings.openrouter_model,
-        "tools": [t["name"] for t in registry.schemas()],
-        "mcp": mcp_status(),
+        "tools": len(registry.schemas()),
     }
