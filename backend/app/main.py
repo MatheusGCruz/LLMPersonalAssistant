@@ -68,6 +68,6 @@ def health() -> dict:
         "model_ready": engine.loaded(),
         "openrouter_enabled": settings.has_openrouter_key,
         "openrouter_model": settings.openrouter_model,
-        "tools": [t.name for t in registry.schemas()],
+        "tools": [t["name"] for t in registry.schemas()],
         "mcp": mcp_status(),
     }
