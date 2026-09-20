@@ -2,6 +2,9 @@ services:
   assistant:
     build:
       context: ./backend
+    # Optional local LLM: not started by default. Bring it back later with:
+    #   docker compose --profile local-llm up -d
+    profiles: ["local-llm"]
     container_name: llm-assistant
     ports:
       - "${LLMPA_PORT:-8000}:8000"
@@ -35,11 +38,10 @@ services:
     build:
       context: ./bot
     container_name: llm-assistant-bot
-    depends_on:
-      - assistant
+    depends_on: []
     environment:
       BOT_TOKEN: ${BOT_TOKEN:-}
-      BOT_ASSISTANT_ENABLED: ${BOT_ASSISTANT_ENABLED:-true}
+      BOT_ASSISTANT_ENABLED: ${BOT_ASSISTANT_ENABLED:-false}
       BOT_ASSISTANT_ENDPOINT: ${BOT_ASSISTANT_ENDPOINT:-http://assistant:8000/assistant}
       BOT_FETCH_TIMEOUT_MS: ${BOT_FETCH_TIMEOUT_MS:-180000}
       BOT_INTERMEDIARY_DELAY_MS: ${BOT_INTERMEDIARY_DELAY_MS:-1200}
