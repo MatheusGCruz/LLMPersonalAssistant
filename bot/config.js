@@ -3,7 +3,7 @@ require('dotenv').config();
 const DEFAULT_ROUTES = [
   {
     name: 'youtube_mp3',
-    pattern: 'https?://(www\\.)?youtube\\.com/watch\\?v=',
+    pattern: 'https?://(www\\.)?(youtube\\.com/watch\\?v=|youtu\\.be/)(?<id>[A-Za-z0-9_-]{6,})',
     intermediary_messages: ['Baixando....', 'Convertendo para MP3...'],
     endpoint: 'http://host.docker.internal:3021/mp3/{url}',
     method: 'GET',
